@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+import mock
 import unittest
 
 from kinto.core.testing import get_user_headers
 from pyramid.exceptions import ConfigurationError
 
+from kinto.plugins.accounts import scripts
 from .. import support
 
 
@@ -319,3 +321,27 @@ class WithBasicAuthTest(AccountsWebTest):
     def test_raise_configuration_if_wrong_error(self):
         with self.assertRaises(ConfigurationError):
             self.make_app({'multiauth.policies': 'basicauth account'})
+
+
+class CreateUserTest(unittest.TestCase):
+    def setUp(self):
+        self.registry = mock.MagicMock()
+        self.registry.settings = {
+            "includes": "kinto.plugins.accounts",
+        }
+
+    def test_create_user_in_read_only_display_an_error(self):
+        with mock.patch('kinto.plugins.accounts.scripts.logger') as mocked:
+            self.registry.settings['readonly'] = 'true'
+            code = scripts.create_user({'registry': self.registry})
+            assert code == 51
+            mocked.error.assert_any_call('Cannot create user while '
+                                         'in readonly mode.')
+
+    def test_create_user_when_not_included_display_an_error(self):
+        with mock.patch('kinto.plugins.accounts.scripts.logger') as mocked:
+            self.registry.settings['includes'] = ''
+            code = scripts.create_user({'registry': self.registry})
+            assert code == 52
+            mocked.error.assert_any_call('Cannot create user while '
+                                         'the accounts plugin is not installed.')
